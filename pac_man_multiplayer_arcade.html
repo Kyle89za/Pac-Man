@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pac-Man Multiplayer Arcade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QR Code Library for quick room sharing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #080811;
+            color: #f3f4f6;
+            touch-action: manipulation;
+        }
+
+        .font-arcade {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* Glassmorphism & Glows */
+        .arcade-card {
+            background: rgba(18, 18, 36, 0.85);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 204, 0, 0.2);
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.1);
+        }
+
+        .arcade-btn {
+            transition: all 0.15s ease-in-out;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+        }
+
+        .arcade-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 rgba(0,0,0,0.5);
+        }
+
+        .glow-yellow {
+            text-shadow: 0 0 10px rgba(255, 230, 0, 0.7);
+        }
+
+        canvas {
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-2 md:p-6 bg-slate-950 text-white overflow-x-hidden">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform translate-x-72 transition-transform duration-300 ease-in-out bg-yellow-400 text-slate-950 font-bold px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border-2 border-yellow-200">
+        <i class="fa-solid fa-circle-check text-xl"></i>
+        <span id="toast-message">Copied to clipboard!</span>
+    </div>
+
+    <!-- Header -->
+    <header class="w-full max-w-4xl flex justify-between items-center py-2 px-4 mb-2 border-b border-yellow-500/20">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-yellow-500/30">
+                C
+            </div>
+            <h1 class="font-arcade text-lg md:text-xl text-yellow-400 glow-yellow tracking-wider">PAC-MAN MULTIPLAYER</h1>
+        </div>
+        <button id="header-invite-btn" class="hidden arcade-btn bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs md:text-sm flex items-center gap-2 hover:brightness-110">
+            <i class="fa-solid fa-user-plus"></i> Invite Friends
+        </button>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-4xl flex-1 flex flex-col items-center justify-center">
+
+        <!-- LOBBY SCREEN -->
+        <div id="lobby-screen" class="w-full max-w-md arcade-card p-6 md:p-8 rounded-3xl border border-yellow-500/30 text-center relative overflow-hidden my-auto">
+            <div class="absolute -right-12 -top-12 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl"></div>
+            
+            <div class="text-4xl my-3 text-yellow-400 animate-bounce">
+                <i class="fa-solid fa-ghost"></i>
+            </div>
+            <h2 class="font-arcade text-xl text-yellow-400 mb-2">ARCADE LOBBY</h2>
+            <p class="text-gray-400 text-sm mb-6">Play local solo/versus or join a multiplayer room with friends!</p>
+
+            <!-- Mode Selector Tabs -->
+            <div class="grid grid-cols-2 gap-2 p-1 bg-slate-900/80 rounded-xl mb-6 text-xs font-semibold">
+                <button id="tab-create" onclick="switchTab('create')" class="py-2.5 rounded-lg bg-yellow-400 text-slate-950 transition-all font-bold">Create Room</button>
+                <button id="tab-join" onclick="switchTab('join')" class="py-2.5 rounded-lg text-gray-400 hover:text-white transition-all">Join Room</button>
+            </div>
+
+            <!-- TAB 1: CREATE ROOM -->
+            <div id="panel-create" class="space-y-4">
+                <div>
+                    <label class="block text-left text-xs text-gray-400 mb-1 font-semibold">YOUR NICKNAME</label>
+                    <input type="text" id="player-name-create" placeholder="Pac-Master" maxlength="12" value="Player 1" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-yellow-300 font-bold focus:outline-none focus:border-yellow-400 text-sm">
+                </div>
+                <button onclick="createRoom()" class="w-full arcade-btn bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 font-arcade text-xs py-4 rounded-xl font-bold hover:brightness-110 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus-circle text-base"></i> CREATE MULTIPLAYER ROOM
+                </button>
+            </div>
+
+            <!-- TAB 2: JOIN ROOM -->
+            <div id="panel-join" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-left text-xs text-gray-400 mb-1 font-semibold">YOUR NICKNAME</label>
+                    <input type="text" id="player-name-join" placeholder="Ghost-Hunter" maxlength="12" value="Player 2" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-yellow-300 font-bold focus:outline-none focus:border-yellow-400 text-sm">
+                </div>
+                <div>
+                    <label class="block text-left text-xs text-gray-400 mb-1 font-semibold">ROOM CODE</label>
+                    <input type="text" id="room-code-input" placeholder="e.g. 8492" uppercase class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-yellow-400 font-arcade text-center tracking-widest text-lg focus:outline-none focus:border-yellow-400">
+                </div>
+                <button onclick="joinRoom()" class="w-full arcade-btn bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-arcade text-xs py-4 rounded-xl font-bold hover:brightness-110 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-right-to-bracket text-base"></i> JOIN ROOM NOW
+                </button>
+            </div>
+
+            <!-- Quick How to Invite Info Box -->
+            <div class="mt-6 pt-4 border-t border-slate-800 text-left bg-slate-900/40 p-3.5 rounded-xl border border-slate-800/80">
+                <div class="flex items-center gap-2 text-yellow-400 text-xs font-bold mb-1">
+                    <i class="fa-solid fa-circle-info"></i> How to invite friends?
+                </div>
+                <p class="text-xs text-gray-400 leading-relaxed">Create a room to instantly get a <span class="text-gray-200 font-semibold">4-digit Room Code</span>, direct link, or <span class="text-gray-200 font-semibold">QR code</span> to send to your friends!</p>
+            </div>
+        </div>
+
+        <!-- WAITING ROOM / LOBBY SCREEN -->
+        <div id="waiting-screen" class="w-full max-w-xl arcade-card p-6 md:p-8 rounded-3xl border border-yellow-500/30 text-center hidden my-auto">
+            <h2 class="font-arcade text-lg text-yellow-400 mb-1">ROOM READY</h2>
+            <p class="text-xs text-gray-400 mb-6">Invite players before starting the game!</p>
+
+            <!-- Dedicated Invite Hero Section -->
+            <div class="bg-slate-900/90 rounded-2xl p-4 border border-yellow-500/30 mb-6 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Room Code</span>
+                    <div class="flex items-center gap-2">
+                        <span id="display-room-code" class="font-arcade text-2xl text-yellow-400 tracking-widest">----</span>
+                        <button onclick="copyRoomCode()" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-yellow-400 transition-colors" title="Copy Room Code">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Direct Link Sharer -->
+                <div class="space-y-1.5 text-left">
+                    <label class="text-[11px] font-semibold text-gray-400">SHAREABLE INVITE LINK</label>
+                    <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1.5 pl-3">
+                        <input type="text" id="invite-link-input" readonly class="bg-transparent text-xs text-cyan-300 w-full focus:outline-none select-all truncate pr-2" value="http://...">
+                        <button onclick="copyInviteLink()" class="bg-yellow-400 text-slate-950 font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 whitespace-nowrap hover:bg-yellow-300 transition-colors">
+                            <i class="fa-solid fa-link"></i> Copy Link
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Action Buttons -->
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <button onclick="openInviteModal()" class="bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs py-2.5 rounded-xl font-semibold border border-slate-700 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-qrcode text-yellow-400"></i> Show QR Code
+                    </button>
+                    <button onclick="shareNativeLink()" class="bg-slate-800 hover:bg-slate-700 text-gray-200 text-xs py-2.5 rounded-xl font-semibold border border-slate-700 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-share-nodes text-cyan-400"></i> Mobile Share
+                    </button>
+                </div>
+            </div>
+
+            <!-- Connected Players List -->
+            <div class="text-left mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold text-gray-400">PLAYERS IN LOBBY</span>
+                    <span id="player-count-badge" class="text-[10px] bg-yellow-400/20 text-yellow-300 font-bold px-2 py-0.5 rounded-full">1 / 4</span>
+                </div>
+                <div id="lobby-players-list" class="space-y-2">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="leaveRoom()" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-gray-300 font-semibold py-3 rounded-xl text-xs transition-colors">
+                    Leave
+                </button>
+                <button id="start-game-btn" onclick="startGame()" class="w-2/3 arcade-btn bg-gradient-to-r from-green-400 to-emerald-500 text-slate-950 font-arcade text-xs py-3 rounded-xl font-bold hover:brightness-110">
+                    START GAME
+                </button>
+            </div>
+        </div>
+
+        <!-- GAMEPLAY SCREEN -->
+        <div id="game-screen" class="w-full flex-col items-center hidden">
+            <!-- HUD -->
+            <div class="w-full max-w-2xl bg-slate-900/90 border border-slate-800 rounded-2xl p-3 mb-3 flex justify-between items-center text-xs">
+                <div class="flex items-center gap-4">
+                    <div>
+                        <span class="text-gray-400 text-[10px] block font-semibold">ROOM</span>
+                        <span id="hud-room-code" class="font-arcade text-yellow-400 text-sm">----</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-400 text-[10px] block font-semibold">SCORE</span>
+                        <span id="hud-score" class="font-arcade text-white text-sm">0</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="openInviteModal()" class="bg-yellow-400/10 text-yellow-400 hover:bg-yellow-400 hover:text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5 border border-yellow-400/30">
+                        <i class="fa-solid fa-user-plus"></i> <span class="hidden sm:inline">Invite</span>
+                    </button>
+                    <button onclick="leaveRoom()" class="bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors">
+                        Quit
+                    </button>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="relative rounded-2xl overflow-hidden border-2 border-yellow-500/30 shadow-2xl bg-black">
+                <canvas id="gameCanvas" width="448" height="496" class="max-w-full h-auto block"></canvas>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- EXPLICIT INVITE FRIENDS MODAL -->
+    <div id="invite-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-filter backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="arcade-card w-full max-w-md rounded-3xl p-6 border border-yellow-500/40 relative shadow-2xl animate-in fade-in zoom-in duration-200">
+            <button onclick="closeInviteModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white p-2 text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="text-center mb-5">
+                <div class="w-12 h-12 bg-yellow-400/20 text-yellow-400 rounded-2xl flex items-center justify-center text-xl mx-auto mb-2 border border-yellow-400/30">
+                    <i class="fa-solid fa-user-plus"></i>
+                </div>
+                <h3 class="font-arcade text-base text-yellow-400">INVITE FRIENDS</h3>
+                <p class="text-xs text-gray-400 mt-1">Share the code, link, or scan QR code to join this arcade session.</p>
+            </div>
+
+            <div class="space-y-4">
+                <!-- 1. Room Code Big Display -->
+                <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center">
+                    <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">1. Share Room Code</span>
+                    <div class="flex items-center justify-center gap-3">
+                        <span id="modal-room-code" class="font-arcade text-3xl text-yellow-400 tracking-widest">----</span>
+                        <button onclick="copyRoomCode()" class="bg-yellow-400 text-slate-950 p-2.5 rounded-xl font-bold hover:bg-yellow-300 text-xs flex items-center gap-1 shadow-md">
+                            <i class="fa-solid fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. Shareable Link -->
+                <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800">
+                    <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">2. Direct Invite Link</span>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="modal-invite-link" readonly class="bg-slate-950 text-xs text-cyan-300 px-3 py-2 rounded-xl w-full border border-slate-800 focus:outline-none truncate">
+                        <button onclick="copyInviteLink()" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs whitespace-nowrap">
+                            Copy Link
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. Dynamic QR Code for Mobile Players -->
+                <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center flex flex-col items-center">
+                    <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-2">3. Scan QR Code on Mobile</span>
+                    <div id="qrcode-container" class="p-3 bg-white rounded-xl shadow-lg border border-slate-700"></div>
+                </div>
+            </div>
+
+            <button onclick="closeInviteModal()" class="w-full mt-5 bg-slate-800 hover:bg-slate-700 text-gray-300 font-semibold py-3 rounded-xl text-xs transition-colors">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- JS Logic -->
+    <script>
+        // State Management
+        let currentRoomCode = null;
+        let isHost = false;
+        let qrCodeObj = null;
+
+        // Auto check URL parameters for auto-joining room code
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomFromUrl = urlParams.get('room');
+            if (roomFromUrl) {
+                switchTab('join');
+                document.getElementById('room-code-input').value = roomFromUrl.toUpperCase();
+                showToast("Room code loaded from link!");
+            }
+        });
+
+        // Tab Switching in Lobby
+        function switchTab(tab) {
+            const createBtn = document.getElementById('tab-create');
+            const joinBtn = document.getElementById('tab-join');
+            const panelCreate = document.getElementById('panel-create');
+            const panelJoin = document.getElementById('panel-join');
+
+            if (tab === 'create') {
+                createBtn.className = "py-2.5 rounded-lg bg-yellow-400 text-slate-950 transition-all font-bold";
+                joinBtn.className = "py-2.5 rounded-lg text-gray-400 hover:text-white transition-all";
+                panelCreate.classList.remove('hidden');
+                panelJoin.classList.add('hidden');
+            } else {
+                joinBtn.className = "py-2.5 rounded-lg bg-yellow-400 text-slate-950 transition-all font-bold";
+                createBtn.className = "py-2.5 rounded-lg text-gray-400 hover:text-white transition-all";
+                panelJoin.classList.remove('hidden');
+                panelCreate.classList.add('hidden');
+            }
+        }
+
+        // Generate Random 4-digit Room Code
+        function generateRoomCode() {
+            return Math.floor(1000 + Math.random() * 9000).toString();
+        }
+
+        // Get full shareable URL
+        function getShareableUrl(code) {
+            const baseUrl = window.location.origin + window.location.pathname;
+            return `${baseUrl}?room=${code}`;
+        }
+
+        // Create Multiplayer Room
+        function createRoom() {
+            const name = document.getElementById('player-name-create').value.trim() || "Host";
+            currentRoomCode = generateRoomCode();
+            isHost = true;
+            setupRoomUI(name);
+        }
+
+        // Join Room
+        function joinRoom() {
+            const name = document.getElementById('player-name-join').value.trim() || "Player";
+            const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+            if (!code || code.length < 4) {
+                showToast("Please enter a valid 4-digit room code.");
+                return;
+            }
+            currentRoomCode = code;
+            isHost = false;
+            setupRoomUI(name);
+        }
+
+        // Setup Room UI & Invite Controls
+        function setupRoomUI(playerName) {
+            document.getElementById('lobby-screen').classList.add('hidden');
+            document.getElementById('waiting-screen').classList.remove('hidden');
+            document.getElementById('header-invite-btn').classList.remove('hidden');
+
+            const inviteUrl = getShareableUrl(currentRoomCode);
+
+            // Update DOM Elements
+            document.getElementById('display-room-code').innerText = currentRoomCode;
+            document.getElementById('modal-room-code').innerText = currentRoomCode;
+            document.getElementById('hud-room-code').innerText = currentRoomCode;
+            document.getElementById('invite-link-input').value = inviteUrl;
+            document.getElementById('modal-invite-link').value = inviteUrl;
+
+            // Generate/Update QR Code
+            const qrContainer = document.getElementById('qrcode-container');
+            qrContainer.innerHTML = '';
+            qrCodeObj = new QRCode(qrContainer, {
+                text: inviteUrl,
+                width: 120,
+                height: 120,
+                colorDark : "#0f172a",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+
+            // Update Mock Players List
+            const playersList = document.getElementById('lobby-players-list');
+            playersList.innerHTML = `
+                <div class="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-yellow-400"></span>
+                        <span class="text-xs font-bold text-white">${playerName} ${isHost ? '(Host)' : ''}</span>
+                    </div>
+                    <span class="text-[10px] text-green-400 font-bold bg-green-500/10 px-2 py-0.5 rounded-full">Ready</span>
+                </div>
+            `;
+
+            showToast(`Room #${currentRoomCode} created!`);
+        }
+
+        // Clipboard Copy Helper (Handles iframe restrictions safely)
+        function copyToClipboard(text, successMsg) {
+            const tempInput = document.createElement('input');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast(successMsg);
+        }
+
+        function copyRoomCode() {
+            if (!currentRoomCode) return;
+            copyToClipboard(currentRoomCode, "Room Code copied!");
+        }
+
+        function copyInviteLink() {
+            if (!currentRoomCode) return;
+            const url = getShareableUrl(currentRoomCode);
+            copyToClipboard(url, "Invite link copied to clipboard!");
+        }
+
+        // Mobile Native Share API
+        async function shareNativeLink() {
+            if (!currentRoomCode) return;
+            const url = getShareableUrl(currentRoomCode);
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'Join my Pac-Man Arcade Game!',
+                        text: `Join my game room #${currentRoomCode} in Pac-Man Multiplayer!`,
+                        url: url
+                    });
+                } catch (err) {
+                    copyInviteLink();
+                }
+            } else {
+                copyInviteLink();
+            }
+        }
+
+        // Modal Controls
+        function openInviteModal() {
+            document.getElementById('invite-modal').classList.remove('hidden');
+        }
+
+        document.getElementById('header-invite-btn').addEventListener('click', openInviteModal);
+
+        function closeInviteModal() {
+            document.getElementById('invite-modal').classList.add('hidden');
+        }
+
+        // Toast Feedback Notification
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = message;
+            toast.classList.remove('translate-x-72');
+            setTimeout(() => {
+                toast.classList.add('translate-x-72');
+            }, 3000);
+        }
+
+        // Start Game State
+        function startGame() {
+            document.getElementById('waiting-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            document.getElementById('game-screen').classList.add('flex');
+            initCanvas();
+        }
+
+        function leaveRoom() {
+            currentRoomCode = null;
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('waiting-screen').classList.add('hidden');
+            document.getElementById('lobby-screen').classList.remove('hidden');
+            document.getElementById('header-invite-btn').classList.add('hidden');
+        }
+
+        // Canvas Game Placeholder Drawing
+        function initCanvas() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#05050d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#facc15';
+            ctx.font = '12px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('MULTIPLAYER MAZE READY', canvas.width / 2, canvas.height / 2 - 10);
+            
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px Inter';
+            ctx.fillText('Use Arrow Keys to Move', canvas.width / 2, canvas.height / 2 + 20);
+        }
+    </script>
+</body>
+</html>
